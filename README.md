@@ -17,6 +17,14 @@ Help:
 ./zig-out/bin/lifx-control --help
 ```
 
+Turn off the bulb while keeping its stored brightness:
+
+```sh
+./zig-out/bin/lifx-control 192.168.1.50 poweroff
+```
+
+Use a positive brightness value to turn it back on at the desired level.
+
 Read the current brightness and power state without changing the bulb:
 
 ```sh

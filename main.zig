@@ -93,11 +93,11 @@ pub fn main(init: std.process.Init) void {
         std.process.exit(1);
     };
     if (args.len == 2 and (std.mem.eql(u8, args[1], "--help") or std.mem.eql(u8, args[1], "-h"))) {
-        std.debug.print("Usage: lifx-control <IPv4 address> <brightness 0-100|get>\nExample: lifx-control 192.168.1.50 50\nQuery: lifx-control 192.168.1.50 get\n0 turns off; positive values set brightness and turn on.\n", .{});
+        std.debug.print("Usage: lifx-control <IPv4 address> <brightness 0-100|poweroff|get>\nSet brightness: lifx-control 192.168.1.50 50\nPower off: lifx-control 192.168.1.50 poweroff\nGet status: lifx-control 192.168.1.50 get\n0 turns off; positive values set brightness and turn on.\n", .{});
         return;
     }
     if (args.len != 3) {
-        std.debug.print("Usage: lifx-control <IPv4 address> <brightness 0-100|get>\n", .{});
+        std.debug.print("Usage: lifx-control <IPv4 address> <brightness 0-100|poweroff|get>\n", .{});
         std.process.exit(2);
     }
     if (std.mem.eql(u8, args[2], "get")) {
@@ -105,6 +105,14 @@ pub fn main(init: std.process.Init) void {
             std.debug.print("Failed: {s}. Check the IP, bulb power, and local network access.\n", .{@errorName(err)});
             std.process.exit(1);
         };
+        return;
+    }
+    if (std.mem.eql(u8, args[2], "poweroff")) {
+        powerOff(args[1]) catch |err| {
+            std.debug.print("Failed: {s}. Check the IP, bulb power, and local network access.\n", .{@errorName(err)});
+            std.process.exit(1);
+        };
+        std.debug.print("Bulb {s} acknowledged power off.\n", .{args[1]});
         return;
     }
     const percent = std.fmt.parseFloat(f64, args[2]) catch {
@@ -120,4 +128,9 @@ pub fn main(init: std.process.Init) void {
         std.process.exit(1);
     };
     std.debug.print("Bulb {s} acknowledged brightness {d}%.\n", .{ args[1], percent });
+}
+
+fn powerOff(ip: [:0]const u8) !void {
+    // Zero selects only SetLightPower, leaving the stored brightness intact.
+    try control(ip, 0);
 }

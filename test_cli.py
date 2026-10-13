@@ -25,7 +25,7 @@ class CliTests(unittest.TestCase):
 
             def serve():
                 try:
-                    expected = [101] if percent == "get" else ([101, 117] if percent == 0 else [101, 102, 117])
+                    expected = [101] if percent == "get" else ([101, 117] if percent in (0, "poweroff") else [101, 102, 117])
                     for kind in expected:
                         packet, peer = server.recvfrom(512)
                         self.assertEqual(struct.unpack_from("<H", packet)[0], len(packet))
@@ -46,13 +46,13 @@ class CliTests(unittest.TestCase):
                                 self.assertEqual(packet[43:45], color[6:8])
                                 self.assertEqual(struct.unpack_from("<H", packet, 41)[0], int(percent * 65535 / 100 + 0.5))
                             else:
-                                self.assertEqual(struct.unpack_from("<H", packet, 36)[0], 0 if percent == 0 else 65535)
+                                self.assertEqual(struct.unpack_from("<H", packet, 36)[0], 0 if percent in (0, "poweroff") else 65535)
                         struct.pack_into("<H", response, 0, len(response))
                         server.sendto(response, peer)
-                    if percent == "get":
+                    if percent in ("get", "poweroff"):
                         server.settimeout(0.1)
                         with self.assertRaises(socket.timeout):
-                            server.recvfrom(512)  # Reading must not send mutation packets.
+                            server.recvfrom(512)  # No extra packets after the expected commands.
                 except Exception as error:
                     failures.append(error)
 
@@ -65,12 +65,17 @@ class CliTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             if percent == "get":
                 self.assertEqual(result.stdout.decode(), f"Brightness: 18.84%\nPower: {'on' if power else 'off'}\n")
+            if percent == "poweroff":
+                self.assertIn(b"acknowledged power off", result.stderr)
 
     def test_brightness(self):
         self.emulate(12.5)
 
     def test_off(self):
         self.emulate(0)
+
+    def test_poweroff(self):
+        self.emulate("poweroff")
 
     def test_get_brightness(self):
         self.emulate("get")
