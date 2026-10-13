@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>local.lifx-control.microphone</string>
+<key>CFBundleName</key><string>LIFX Music</string>
+<key>NSMicrophoneUsageDescription</key><string>Listen to music volume to adjust your LIFX bulb brightness.</string>
+</dict></plist>
