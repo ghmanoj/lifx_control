@@ -214,19 +214,83 @@ fn control(ip: [:0]const u8, setting: ?f64, music: bool, stdin_levels: bool) !vo
     _ = try exchange(fd, &power, 45, &response);
 }
 
+const help_text =
+    \\lifx-control - Control a LIFX Mini W bulb on your local network
+    \\
+    \\USAGE
+    \\  lifx-control <IP> <BRIGHTNESS>
+    \\  lifx-control <IP> poweroff
+    \\  lifx-control <IP> get
+    \\  lifx-control <IP> music [--levels-stdin]
+    \\  lifx-control -h | --help
+    \\
+    \\ARGUMENTS AND COMMANDS
+    \\  <IP>          Bulb's IPv4 address, such as 192.168.1.50.
+    \\  <BRIGHTNESS>  Percentage from 0 to 100; decimals such as 12.5 are allowed.
+    \\                Positive values set brightness and turn the bulb on.
+    \\                0 turns it off, preserving its stored brightness.
+    \\  poweroff      Turn off without changing the stored brightness.
+    \\  get           Print stored brightness and power state without changes.
+    \\                An off bulb may still report nonzero stored brightness.
+    \\  music         Follow microphone volume with smoothed brightness changes.
+    \\                Uses macOS's default audio input; microphone access required.
+    \\
+    \\OPTIONS
+    \\  -h, --help      Show this help and exit.
+    \\  --levels-stdin  For music only: read binary brightness samples from stdin
+    \\                  instead of the microphone. Each sample is a two-byte
+    \\                  little-endian integer from 0 to 65535. Feed about 10 Hz.
+    \\                  Closing stdin stops the loop and restores the bulb.
+    \\
+    \\MUSIC MODE
+    \\  Keep music paused for the two-second room-noise calibration. Play it
+    \\  through speakers when "Ready" appears. Select MacBook Microphone in
+    \\  System Settings > Sound > Input to use the built-in microphone.
+    \\  Allow access in Privacy & Security > Microphone if prompted or denied.
+    \\  Volume drives brightness from 2% to 100%; loud speech can also trigger it.
+    \\  Audio is never saved or transmitted. Keep lifx-microphone beside this
+    \\  executable. Native microphone capture requires macOS.
+    \\  Press Ctrl+C to stop and restore the original brightness and power.
+    \\  Restoration is attempted after errors but requires a reachable bulb.
+    \\
+    \\EXAMPLES
+    \\  lifx-control 192.168.1.50 75       Set brightness to 75% and turn on
+    \\  lifx-control 192.168.1.50 12.5     Set brightness to 12.5% and turn on
+    \\  lifx-control 192.168.1.50 poweroff Turn off, retaining brightness
+    \\  lifx-control 192.168.1.50 get      Read brightness and power state
+    \\  lifx-control 192.168.1.50 music    Start microphone music mode
+    \\
+    \\NETWORK
+    \\  The bulb must be powered at the wall and reachable over UDP port 56700.
+    \\  No cloud account or API token is needed. White/color settings are kept.
+    \\  If requests time out, check the IP, firewall, and Wi-Fi client isolation.
+    \\
+    \\EXIT STATUS
+    \\  0  Success or help displayed
+    \\  1  Network, protocol, microphone, or runtime failure (including invalid IP)
+    \\  2  Invalid command-line arguments
+;
+
+fn isHelp(arg: []const u8) bool {
+    return std.mem.eql(u8, arg, "--help") or std.mem.eql(u8, arg, "-h");
+}
+
 pub fn main(init: std.process.Init) void {
     const args = init.minimal.args.toSlice(init.arena.allocator()) catch {
         std.debug.print("Unable to read arguments.\n", .{});
         std.process.exit(1);
     };
-    if (args.len == 2 and (std.mem.eql(u8, args[1], "--help") or std.mem.eql(u8, args[1], "-h"))) {
-        std.debug.print("Usage: lifx-control <IPv4 address> <brightness 0-100|poweroff|get|music>\nSet brightness: lifx-control 192.168.1.50 50\nPower off: lifx-control 192.168.1.50 poweroff\nGet status: lifx-control 192.168.1.50 get\nMusic: lifx-control 192.168.1.50 music\n0 turns off; positive values set brightness and turn on.\n", .{});
+    if ((args.len == 2 and isHelp(args[1])) or
+        (args.len == 3 and isHelp(args[2])) or
+        (args.len == 4 and std.mem.eql(u8, args[2], "music") and isHelp(args[3])))
+    {
+        _ = c.puts(help_text);
         return;
     }
     if (args.len >= 3 and std.mem.eql(u8, args[2], "music")) {
         const stdin_levels = args.len == 4 and std.mem.eql(u8, args[3], "--levels-stdin");
         if (args.len != 3 and !stdin_levels) {
-            std.debug.print("Usage: lifx-control <IPv4 address> music [--levels-stdin]\n", .{});
+            std.debug.print("Usage: lifx-control <IPv4 address> music [--levels-stdin]\nTry 'lifx-control --help' for details.\n", .{});
             std.process.exit(2);
         }
         control(args[1], null, true, stdin_levels) catch |err| {
@@ -236,7 +300,7 @@ pub fn main(init: std.process.Init) void {
         return;
     }
     if (args.len != 3) {
-        std.debug.print("Usage: lifx-control <IPv4 address> <brightness 0-100|poweroff|get|music>\n", .{});
+        std.debug.print("Usage: lifx-control <IPv4 address> <brightness 0-100|poweroff|get|music>\nTry 'lifx-control --help' for details.\n", .{});
         std.process.exit(2);
     }
     if (std.mem.eql(u8, args[2], "get")) {
