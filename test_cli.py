@@ -1,4 +1,7 @@
 """Integration checks against a loopback LIFX emulator; no real bulb needed."""
+from pathlib import Path
+import shutil
+import tempfile
 import socket
 import struct
 import subprocess
@@ -15,6 +18,15 @@ class CliTests(unittest.TestCase):
             result = subprocess.run([BIN, "127.0.0.1", brightness], capture_output=True)
             self.assertEqual(result.returncode, 2, result.stderr)
         self.assertEqual(subprocess.run([BIN, "--help"], capture_output=True).returncode, 0)
+
+    def test_levels_require_readable_stdin(self):
+        for redirect in ("<&-", ">/dev/null 0>&1"):
+            result = subprocess.run(
+                ["sh", "-c", 'exec "$@" ' + redirect, "sh", BIN, "127.0.0.1", "music", "--levels-stdin"],
+                capture_output=True, timeout=3,
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(b"StdinNotReadable", result.stderr)
 
     def emulate(self, percent, power=65535):
         failures = []
@@ -84,7 +96,7 @@ class CliTests(unittest.TestCase):
     def test_get_when_off(self):
         self.emulate("get", power=0)
 
-    def music(self, interrupt=False, initial_power=0, jitter=False):
+    def music(self, interrupt=False, initial_power=0, jitter=False, native_binary=None):
         failures = []
         target = bytes.fromhex("d073d50013370000")
         original = struct.pack("<HHHH", 100, 0, 12345, 2700)
@@ -122,7 +134,10 @@ class CliTests(unittest.TestCase):
 
             worker = threading.Thread(target=serve)
             worker.start()
-            process = subprocess.Popen([BIN, "127.0.0.1", "music", "--levels-stdin"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            args = [native_binary or BIN, "127.0.0.1", "music"]
+            if native_binary is None:
+                args.append("--levels-stdin")
+            process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             try:
                 if interrupt or jitter:
                     process.stdin.write(struct.pack("<H", 50000))
@@ -130,6 +145,7 @@ class CliTests(unittest.TestCase):
                     self.assertTrue(applied.wait(5))
                     if interrupt:
                         process.send_signal(signal.SIGINT)
+                        process.wait(timeout=12)
                         _, stderr = process.communicate(timeout=12)
                     else:
                         _, stderr = process.communicate(struct.pack("<H", 50010), timeout=12)
@@ -144,6 +160,21 @@ class CliTests(unittest.TestCase):
                 worker.join()
             if failures:
                 raise failures[0]
+
+    def test_symlink_launch_finds_installed_microphone(self):
+        if b"music [--levels-stdin]" not in subprocess.check_output([BIN, "--help"]):
+            self.skipTest("requires WITH_MICROPHONE=1")
+        with tempfile.TemporaryDirectory() as tmp:
+            install = Path(tmp) / "install"
+            install.mkdir()
+            controller = Path(shutil.copy2(BIN, install))
+            alias = Path(tmp) / "controller-link"
+            alias.symlink_to(controller)
+            # Use deterministic levels in place of physical microphone input.
+            helper = install / "lifx-microphone"
+            helper.write_text("#!/bin/sh\nexec /bin/cat\n")
+            helper.chmod(0o700)
+            self.music(interrupt=True, native_binary=alias)
 
     def test_music_restores_off_bulb(self):
         self.music()

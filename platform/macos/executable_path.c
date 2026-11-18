@@ -1,8 +1,11 @@
 #include "../executable_path.h"
-#include <mach-o/dyld.h>
+#include <libproc.h>
+#include <unistd.h>
 
 bool executable_path(char *path, size_t capacity)
 {
-    uint32_t size = (uint32_t)capacity;
-    return _NSGetExecutablePath(path, &size) == 0;
+    // Ask the kernel for the running image, independent of its launch symlink.
+    if (capacity > PROC_PIDPATHINFO_MAXSIZE)
+        capacity = PROC_PIDPATHINFO_MAXSIZE;
+    return proc_pidpath(getpid(), path, (uint32_t)capacity) > 0;
 }

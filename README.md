@@ -56,11 +56,13 @@ Music mode follows microphone volume rather than detecting musical beats or dire
 
 Run `./build/lifx-microphone --self-test` to check the noise gate with synthetic levels, without accessing the microphone.
 
-Press **Ctrl+C** to stop. The helper is stopped and the bulb's initial brightness and power state are restored. Restoration is also attempted after an audio/network error; an unreachable bulb may prevent it. Keep `lifx-microphone` beside `lifx-control` when moving the executables.
+Press **Ctrl+C** to stop. The helper is stopped and the bulb's initial brightness and power state are restored. Restoration is also attempted after an audio/network error; an unreachable bulb may prevent it. Install `lifx-microphone` beside `lifx-control` in a directory writable only by trusted users.
 
 ## Music from stdin
 
 In either build, `music --levels-stdin` reads a stream of two-byte little-endian brightness values (0–65535) from stdin, without accessing the microphone. It uses the newest complete sample in each read and restores the bulb when stdin closes. Feed samples at about 10 Hz.
+
+LIFX LAN messages are unauthenticated. Use a trusted network or restrict access to the bulb’s UDP port 56700. A device able to impersonate the bulb can supply false state or acknowledgements.
 
 The program queries the bulb to obtain its device ID and current color, then requests acknowledgements for brightness and power changes. Each request is retried up to three times with about a one-second wait per attempt. An acknowledgement confirms receipt, rather than independently verifying the final physical brightness. If a later request fails, an earlier change may already have applied.
 

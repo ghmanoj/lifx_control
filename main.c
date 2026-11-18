@@ -2,6 +2,7 @@
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <math.h>
 #include <poll.h>
 #include <signal.h>
@@ -326,6 +327,12 @@ static const char *control(const char *ip, enum command command, double percent,
     if (inet_pton(AF_INET, ip, &address.sin_addr) != 1 ||
         address.sin_addr.s_addr == INADDR_ANY || address.sin_addr.s_addr == INADDR_BROADCAST)
         return "InvalidIPv4Address";
+
+    if (stdin_levels) {
+        int flags = fcntl(STDIN_FILENO, F_GETFL);
+        if (flags < 0 || (flags & O_ACCMODE) == O_WRONLY)
+            return "StdinNotReadable";
+    }
 
     struct bulb bulb = { .fd = socket(AF_INET, SOCK_DGRAM, 0),
                          .source = (uint32_t)getpid() | UINT32_C(0x80000000) };
