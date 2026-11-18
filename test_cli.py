@@ -6,7 +6,7 @@ import threading
 import unittest
 import signal
 
-BIN = "./zig-out/bin/lifx-control"
+BIN = "./build/lifx-control"
 
 
 class CliTests(unittest.TestCase):

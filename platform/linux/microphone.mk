@@ -1,0 +1,1 @@
+MIC_LIBS = -lasound
